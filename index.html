@@ -1,0 +1,154 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Task Manager</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}">
+    <style>
+        /* Popup container styling */
+        .flash-popup {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            background-color: #444;
+            color: rgb(255, 255, 255);
+            padding: 15px;
+            border-radius: 5px;
+            box-shadow: 0px 0px 10px rgba(0, 0, 0, 0.2);
+            z-index: 9999;
+            display: none;
+        }
+        .flash-popup.success {
+            background-color: #4CAF50; /* Green for success */
+        }
+        .flash-popup.error {
+            background-color: #f44336; /* Red for error */
+        }
+        .flash-popup.show {
+            display: block;
+            animation: fadeout 5s forwards; /* Fade out after 5 seconds */
+        }
+        @keyframes fadeout {
+            0% { opacity: 1; }
+            90% { opacity: 1; }
+            100% { opacity: 0; }
+        }
+
+        /* Task container styling */
+        .task-container {
+            border: 1px solid #ccc;
+            border-radius: 5px;
+            padding: 10px;
+            margin-bottom: 10px;
+            background-color: #f9f9f9;
+        }
+        .task-title {
+            font-weight: bold;
+            font-size: 1.2em;
+        }
+        .task-status {
+            margin-top: 5px;
+        }
+        .task-actions {
+            margin-top: 10px;
+        }
+    </style>
+</head>
+<body>
+    <h1>Task List</h1>
+
+    <!-- Flash Popup Container -->
+    <div id="flash-popup" class="flash-popup"></div>
+
+    <!-- Form to add a new task -->
+    <form action="{{ url_for('add_task') }}" method="post">
+        <input type="text" name="title" placeholder="Task Title" required>
+        <textarea name="description" placeholder="Task Description"></textarea>
+        <input type="datetime-local" name="deadline" required> <!-- Deadline with Date & Time -->
+        <button type="submit">Add Task</button>
+    </form>
+
+    <!-- Task list -->
+    <div id="task-list">
+        {% for task in tasks %}
+        <div class="task-container">
+            <div class="task-title">{{ task.title }}</div>
+            <div>Description:{{ task.description }}</div>
+            <div>Created At: {{ task.created_at.strftime('%d-%m-%Y %H:%M') }}</div>
+            <div class="task-status">Status: {{ task.status }}</div>
+            <div>Deadline: {{ task.deadline.strftime('%Y-%m-%d %H:%M') if task.deadline else 'No deadline' }}</div>
+            <div class="task-actions">
+                <!-- Form to update task status -->
+                <form method="POST" action="{{ url_for('update_task', task_id=task.id) }}" style="display:inline;">
+                    <select name="status" {% if task.status == "Completed" %} disabled {% endif %}>
+                        <option value="Pending" {% if task.status == "Pending" %} selected {% endif %}>Pending</option>
+                        <option value="In Progress" {% if task.status == "In Progress" %} selected {% endif %}>In Progress</option>
+                        <option value="Completed" {% if task.status == "Completed" %} selected {% endif %}>Completed</option>
+                    </select>
+                    <button type="submit" {% if task.status == "Completed" %} disabled {% endif %}>Update</button>
+                </form>
+
+                <!-- Form to delete the task -->
+                <form method="POST" action="{{ url_for('delete_task', task_id=task.id) }}" style="display:inline;">
+                    <button type="submit">Delete</button>
+                </form>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+
+    <!-- Script for flash popup -->
+    <script>
+        // Function to start countdown timer for each task
+        function startCountdown(taskId, deadline) {
+            const timerElement = document.getElementById(`timer-${taskId}`);
+            const deadlineTime = new Date(deadline).getTime();
+
+            const countdownInterval = setInterval(function () {
+                const now = new Date().getTime();
+                const timeLeft = deadlineTime - now;
+
+                // Time calculations for days, hours, minutes, and seconds
+                const days = Math.floor(timeLeft / (1000 * 60 * 60 * 24));
+                const hours = Math.floor((timeLeft % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
+                const minutes = Math.floor((timeLeft % (1000 * 60 * 60)) / (1000 * 60));
+                const seconds = Math.floor((timeLeft % (1000 * 60)) / 1000);
+
+                // Display the countdown
+                if (timeLeft >= 0) {
+                    timerElement.innerHTML = `${days}d ${hours}h ${minutes}m ${seconds}s remaining`;
+                } else {
+                    clearInterval(countdownInterval);
+                    timerElement.innerHTML = "Deadline passed";
+                }
+            }, 1000);
+        }
+
+        // Loop to start the countdown for each task
+        {% for task in tasks %}
+            startCountdown({{ task.id }}, "{{ task.deadline.strftime('%Y-%m-%dT%H:%M:%S') }}");
+        {% endfor %}
+
+        // Flash message popup
+        function showFlashPopup(message, category) {
+            const popup = document.getElementById('flash-popup');
+            popup.className = `flash-popup ${category} show`; // Add category (success/error) and show class
+            popup.innerHTML = message; // Set the message content
+
+            // Hide the popup after 5 seconds
+            setTimeout(() => {
+                popup.className = 'flash-popup'; // Reset class to hide
+            }, 5000);
+        }
+
+        // Automatically trigger flash popup from Flask flash messages
+        {% with messages = get_flashed_messages(with_categories=true) %}
+            {% if messages %}
+                {% for category, message in messages %}
+                    showFlashPopup("{{ message }}", "{{ category }}");
+                {% endfor %}
+            {% endif %}
+        {% endwith %}
+    </script>
+</body>
+</html>
